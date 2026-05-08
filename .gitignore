@@ -1,0 +1,11 @@
+# Environments
+.env
+.venv/
+env/
+
+# Secrets & Tokens
+.swiggy_token
+
+# Python Cache
+__pycache__/
+*.pyc
