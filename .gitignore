@@ -5,6 +5,8 @@ env/
 
 # Secrets & Tokens
 .swiggy_token
+token_store.json
+
 
 # Python Cache
 __pycache__/

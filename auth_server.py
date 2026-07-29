@@ -13,7 +13,8 @@ auth_state = {}
 TOKEN_STORE = {}
 
 SWIGGY_CLIENT_ID = os.getenv("SWIGGY_CLIENT_ID", "mock_client_id")
-REDIRECT_URI = "http://localhost:8000/callback"
+SWIGGY_CLIENT_SECRET = os.getenv("SWIGGY_CLIENT_SECRET", "mock_client_secret")
+REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/callback")
 
 def generate_pkce_pair():
     # Generate a random 32-byte verifier
