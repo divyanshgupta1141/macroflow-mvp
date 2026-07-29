@@ -10,6 +10,7 @@ app = FastAPI()
 # Temporary local cache for PKCE verifier
 # In a production app, use Redis or a secure session store
 auth_state = {}
+TOKEN_STORE = {}
 
 SWIGGY_CLIENT_ID = os.getenv("SWIGGY_CLIENT_ID", "mock_client_id")
 REDIRECT_URI = "http://localhost:8000/callback"
@@ -61,8 +62,7 @@ async def callback(code: str):
             access_token = data.get("access_token")
             
             if access_token:
-                with open(".swiggy_token", "w") as f:
-                    f.write(access_token)
+                TOKEN_STORE["access_token"] = access_token
                 return HTMLResponse("<html><body><h1>Authentication Successful!</h1><p>You can now return to the Telegram bot.</p></body></html>")
             else:
                 return HTMLResponse("<html><body><h1>Authentication Failed</h1><p>No access token returned.</p></body></html>", status_code=400)
@@ -71,6 +71,16 @@ async def callback(code: str):
             raise HTTPException(status_code=e.response.status_code, detail=f"Token request failed: {e.response.text}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/token")
+async def get_token():
+    return {"access_token": TOKEN_STORE.get("access_token")}
+
+@app.post("/token/revoke")
+async def revoke_token():
+    TOKEN_STORE.pop("access_token", None)
+    return {"status": "success"}
 
 if __name__ == "__main__":
     import uvicorn

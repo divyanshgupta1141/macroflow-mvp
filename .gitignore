@@ -9,3 +9,9 @@ env/
 # Python Cache
 __pycache__/
 *.pyc
+
+# IDE & OS files
+.DS_Store
+.vscode/
+pyrightconfig.json
+

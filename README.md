@@ -48,7 +48,7 @@ To test the live LangGraph agent against the Swiggy staging servers, you must au
     uvicorn auth_server:app --reload --port 8000
     
 ```
-    *Navigate to `http://localhost:8000/login` to generate your `.swiggy_token`.*
+    *Navigate to `http://localhost:8000/login` to securely authenticate and cache the token in the server's memory.*
 3.  **Launch the Agent:**
     ```bash
     python agent.py
