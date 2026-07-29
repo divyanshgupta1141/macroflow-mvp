@@ -7,7 +7,6 @@ MacroFlow eliminates the friction of manually searching menus and calculating nu
 ---
 
 ## 🌟 Demo & Submission
-- **Live Demo Video (2 min):** [Google Drive Link](https://drive.google.com/file/d/1WcR_PVA_s1oQ0_E3oSYRhoEJkx7W0MRw/view?usp=sharing)
 - **Built for:** Swiggy Builders Club
 
 ---
