@@ -3,7 +3,7 @@ import base64
 import hashlib
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -30,9 +30,12 @@ SWIGGY_CLIENT_SECRET = os.getenv("SWIGGY_CLIENT_SECRET", "mock_client_secret")
 REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/callback")
 
 @app.get("/")
+async def root():
+    return {"status": "ok", "service": "macroflow-auth", "docs": "/docs"}
+
 @app.get("/health")
-async def health_check():
-    return {"status": "ok", "service": "macroflow-auth"}
+async def health():
+    return {"status": "ok"}
 
 def generate_pkce_pair():
     # Generate a random 32-byte verifier
@@ -59,8 +62,23 @@ async def login():
     )
     return RedirectResponse(url=auth_url)
 
-@app.get("/callback")
-async def callback(code: str):
+@app.api_route("/callback", methods=["GET", "POST"])
+async def callback(request: Request, code: str | None = None):
+    # Extract code from query params or request body for POST requests
+    if not code and request.method == "POST":
+        try:
+            body = await request.json()
+            code = body.get("code")
+        except Exception:
+            try:
+                form = await request.form()
+                code = form.get("code")
+            except Exception:
+                pass
+
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code.")
+
     verifier = auth_state.get('verifier')
     if not verifier:
         raise HTTPException(status_code=400, detail="Missing code_verifier. Please start from /login again.")
@@ -104,5 +122,6 @@ async def revoke_token():
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run("auth_server:app", host="0.0.0.0", port=port, reload=False)
+
 
