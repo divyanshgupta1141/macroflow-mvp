@@ -2,10 +2,23 @@ import os
 import base64
 import hashlib
 import httpx
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI()
+load_dotenv()
+
+app = FastAPI(title="MacroFlow Auth Server")
+
+# Enable CORS Middleware for secure cross-origin redirect flows
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Temporary local cache for PKCE verifier
 # In a production app, use Redis or a secure session store
@@ -15,6 +28,11 @@ TOKEN_STORE = {}
 SWIGGY_CLIENT_ID = os.getenv("SWIGGY_CLIENT_ID", "mock_client_id")
 SWIGGY_CLIENT_SECRET = os.getenv("SWIGGY_CLIENT_SECRET", "mock_client_secret")
 REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/callback")
+
+@app.get("/")
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "macroflow-auth"}
 
 def generate_pkce_pair():
     # Generate a random 32-byte verifier
@@ -85,4 +103,6 @@ async def revoke_token():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="localhost", port=8000)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
