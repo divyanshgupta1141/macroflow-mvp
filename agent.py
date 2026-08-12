@@ -63,19 +63,32 @@ def update_food_cart(item_id: str | None = None, quantity: int | str = 1, addres
 SIMULATED_TOOLS = [search_menu, add_to_cart, get_checkout_url, checkout_url, get_food_cart, update_food_cart]
 
 # ==========================================
-# Agent Execution Flow
+# Agent Execution Flow & Defensive Tool Logic
 # ==========================================
 
+# Note on Ephemeral Tool State (Swiggy Gateway Compliance):
+# MCP tool outputs (restaurant menus, pricing, item availability, cart states)
+# are fetched live per agent step and session. No tool output or response body
+# is cached across user requests or loop iterations.
+
 MOCK_TOKEN = None
+
+def get_auth_base_url() -> str:
+    """Dynamically derive the base auth server URL from REDIRECT_URI or AUTH_SERVER_URL env var, defaulting to render host."""
+    redirect_uri = os.getenv("REDIRECT_URI", "")
+    if redirect_uri and "/callback" in redirect_uri:
+        return redirect_uri.rsplit("/callback", 1)[0]
+    return os.getenv("AUTH_SERVER_URL", "https://macroflow-auth.onrender.com")
 
 def get_swiggy_access_token():
     """Reads the token from the in-memory auth server store."""
     if MOCK_TOKEN is not None:
         return MOCK_TOKEN
     try:
-        # Since we use httpx in agent.py, we can query the token server directly.
+        # Query the token server dynamically using the configured auth base URL
+        base_url = get_auth_base_url()
         with httpx.Client() as client:
-            response = client.get("http://localhost:8000/token")
+            response = client.get(f"{base_url}/token")
             if response.status_code == 200:
                 return response.json().get("access_token")
     except Exception:
@@ -103,7 +116,7 @@ Step 3: Immediately STOP calling any tools. Parse the `cart_id` directly from th
     # 2. Filter the live Swiggy tools
     filtered_tools = [tool for tool in swiggy_tools if tool.name in essential_tool_names]
 
-    # 3. Pass the filtered_tools to the agent instead of the full swiggy_tools list
+    # 3. Pass the filtered_tools to the agent instead of the full swiggy_tools list (fresh agent per invocation)
     agent = create_react_agent(llm, filtered_tools, prompt=system_prompt, debug=False)
 
     print("\n" + "=" * 55)
@@ -118,7 +131,7 @@ Step 3: Immediately STOP calling any tools. Parse the `cart_id` directly from th
                 print(f"\n⚙️  [Agent Action]: Executing '{tc['name']}'...")
                 print(f"    Args: {tc['args']}")
 
-        # Log Tool Results
+        # Log Tool Results (Processed ephemerally per request iteration)
         elif msg.type == "tool":
             print(f"\n✅ [Tool Result - {msg.name}]:")
             if hasattr(msg, "artifact") and isinstance(msg.artifact, dict):
@@ -172,6 +185,7 @@ async def run_with_mcp_connection(headers, user_input):
                 await session.initialize()
                 print("SUCCESS: Session Initialized")
                 
+                # Fetch fresh MCP tools per session
                 swiggy_tools = await load_mcp_tools(session)
                 if not swiggy_tools:
                     print("STDOUT DEBUG: Tools empty, falling back to simulated.")
@@ -182,9 +196,10 @@ async def run_with_mcp_connection(headers, user_input):
 async def process_request(user_input: str) -> str:
     """Process a user request using the agent, wrapped in an MCP connection."""
     token = get_swiggy_access_token()
+    base_auth_url = get_auth_base_url()
     
     if not token:
-        return "Authentication required. Please link your Swiggy account to continue: http://localhost:8000/login"
+        return f"Authentication required. Please link your Swiggy account to continue: {base_auth_url}/login"
         
     print(f"DEBUG: Attempting Official SSE POST Transport with token: {token[:10]}...")
     
@@ -204,10 +219,10 @@ async def process_request(user_input: str) -> str:
         if "401" in error_str or "unauthorized" in error_str:
             try:
                 with httpx.Client() as client:
-                    client.post("http://localhost:8000/token/revoke")
+                    client.post(f"{base_auth_url}/token/revoke")
             except Exception:
                 pass
-            return "Session expired or unauthorized (401). Please re-authenticate via: http://localhost:8000/login"
+            return f"Session expired or unauthorized (401). Please re-authenticate via: {base_auth_url}/login"
             
         print("STDOUT DEBUG: Falling back to simulated Swiggy tools for demo due to failure.")
         return await execute_agent(SIMULATED_TOOLS, user_input)
@@ -220,8 +235,9 @@ if __name__ == "__main__":
         
         # Fetch the real token from your running auth_server in memory
         try:
+            base_url = get_auth_base_url()
             with httpx.Client() as client:
-                token_response = client.get("http://localhost:8000/token").json()
+                token_response = client.get(f"{base_url}/token").json()
                 token = token_response.get("access_token")
         except Exception:
             token = None

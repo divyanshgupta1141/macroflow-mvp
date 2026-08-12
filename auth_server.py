@@ -27,7 +27,12 @@ TOKEN_STORE = {}
 
 SWIGGY_CLIENT_ID = os.getenv("SWIGGY_CLIENT_ID", "mock_client_id")
 SWIGGY_CLIENT_SECRET = os.getenv("SWIGGY_CLIENT_SECRET", "mock_client_secret")
-REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/callback")
+
+def get_redirect_uri() -> str:
+    """Dynamically retrieve REDIRECT_URI from environment variables per Swiggy gateway recommendations."""
+    return os.getenv("REDIRECT_URI", "https://macroflow-auth.onrender.com/callback")
+
+REDIRECT_URI = get_redirect_uri()
 
 @app.get("/")
 async def root():
@@ -51,11 +56,12 @@ async def login():
     # Save the verifier associated with this flow
     auth_state['verifier'] = verifier
     
+    redirect_uri = get_redirect_uri()
     auth_url = (
         f"https://mcp.swiggy.com/auth/authorize?"
         f"response_type=code&"
         f"client_id={SWIGGY_CLIENT_ID}&"
-        f"redirect_uri={REDIRECT_URI}&"
+        f"redirect_uri={redirect_uri}&"
         f"code_challenge={challenge}&"
         f"code_challenge_method=S256&"
         f"scope=mcp:tools"
@@ -88,7 +94,7 @@ async def callback(request: Request, code: str | None = None):
         "code": code,
         "code_verifier": verifier,
         "client_id": SWIGGY_CLIENT_ID,
-        "redirect_uri": REDIRECT_URI
+        "redirect_uri": get_redirect_uri()
     }
     
     async with httpx.AsyncClient() as client:
