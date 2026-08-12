@@ -95,13 +95,17 @@ def get_swiggy_access_token():
         pass
     return None
 
-async def execute_agent(swiggy_tools, user_input: str) -> str:
+async def execute_agent_with_trace(swiggy_tools, user_input: str) -> tuple[str, list[dict]]:
     print(f"DEBUG: Agent received {len(swiggy_tools)} tools from Swiggy.")
     
-    system_prompt = """You are a strict, single-pass execution agent.
+    system_prompt = """You are a strict, single-pass execution agent for Swiggy Food & Instamart.
 Step 1: Call `get_food_cart` passing `addressId`.
 Step 2: Call `update_food_cart` passing `addressId`, `restaurantId`, and `cartItems`.
-Step 3: Immediately STOP calling any tools. Parse the `cart_id` directly from the JSON response object returned by `update_food_cart` and print: `https://staging.swiggy.com/checkout/<cart_id>`."""
+Step 3: Immediately STOP calling any tools. Parse the live numeric `cart_id` directly from the JSON response object returned by `update_food_cart`.
+Step 4: Format your response cleanly in Markdown without raw timestamp strings. State:
+Cart created successfully with ID **{cart_id}**!
+
+https://www.swiggy.com/menu/924525"""
     
     llm = ChatGroq(
         model="llama-3.1-8b-instant",
@@ -110,62 +114,68 @@ Step 3: Immediately STOP calling any tools. Parse the `cart_id` directly from th
         max_tokens=500
     )
     
-    # 1. Define the exact tools needed for the demo (strictly 2 tools)
     essential_tool_names = ["get_food_cart", "update_food_cart"]
-
-    # 2. Filter the live Swiggy tools
     filtered_tools = [tool for tool in swiggy_tools if tool.name in essential_tool_names]
-
-    # 3. Pass the filtered_tools to the agent instead of the full swiggy_tools list (fresh agent per invocation)
     agent = create_react_agent(llm, filtered_tools, prompt=system_prompt, debug=False)
 
     print("\n" + "=" * 55)
     print("🚀 MACROFLOW AGENT EXECUTION")
     print("=" * 55)
     response = await agent.ainvoke({"messages": [("user", user_input)]})
+    trace_steps = []
 
     for msg in response["messages"]:
-        # Log Tool Call Actions
         if hasattr(msg, "tool_calls") and msg.tool_calls:
             for tc in msg.tool_calls:
                 print(f"\n⚙️  [Agent Action]: Executing '{tc['name']}'...")
                 print(f"    Args: {tc['args']}")
-
-        # Log Tool Results (Processed ephemerally per request iteration)
+                trace_steps.append({
+                    "type": "action",
+                    "name": tc.get("name"),
+                    "args": tc.get("args")
+                })
         elif msg.type == "tool":
             print(f"\n✅ [Tool Result - {msg.name}]:")
+            step = {"type": "result", "name": getattr(msg, "name", "tool")}
             if hasattr(msg, "artifact") and isinstance(msg.artifact, dict):
                 struct = msg.artifact.get("structured_content") or msg.artifact
                 data = struct.get("data") or {}
                 status = struct.get("statusMessage") or struct.get("status", "SUCCESS")
+                step["status"] = status
                 print(f"    Status: {status}")
                 if data.get("cart_id"):
+                    step["cart_id"] = data.get("cart_id")
                     print(f"    Live Cart ID: {data.get('cart_id')}")
                 if data.get("items"):
+                    step["items"] = data.get("items")
                     print(f"    Item: {data['items'][0].get('name')}")
                 if data.get("pricing"):
+                    step["pricing"] = data.get("pricing")
                     print(f"    Total Payable: ₹{data['pricing'].get('to_pay')}")
+            else:
+                step["content"] = str(msg.content)[:200]
+            trace_steps.append(step)
 
-    # Print Final Agent Output
     final_msg = response["messages"][-1].content
     print("\n" + "-" * 55)
     print(f"🤖 [Final Output]:\n{final_msg}")
     print("-" * 55 + "\n")
 
+    return final_msg, trace_steps
+
+async def execute_agent(swiggy_tools, user_input: str) -> str:
+    final_msg, _ = await execute_agent_with_trace(swiggy_tools, user_input)
     return final_msg
 
 
 def should_retry(exception):
     print(f"DEBUG [Resiliency]: Checking exception for retry: {exception}")
     if isinstance(exception, BaseExceptionGroup):
-        # Recursively check if any sub-exception in the group should trigger a retry
         return any(should_retry(e) for e in exception.exceptions)
         
     if isinstance(exception, httpx.HTTPStatusError):
-        # Retry on 429 (Rate Limit) and 5xx (Server Error)
         status_code = exception.response.status_code
         return status_code == 429 or (500 <= status_code < 600)
-    # Retry on standard connection/timeout errors
     if isinstance(exception, (httpx.RequestError, McpError)):
         return True
     return False
@@ -185,21 +195,20 @@ async def run_with_mcp_connection(headers, user_input):
                 await session.initialize()
                 print("SUCCESS: Session Initialized")
                 
-                # Fetch fresh MCP tools per session
                 swiggy_tools = await load_mcp_tools(session)
                 if not swiggy_tools:
                     print("STDOUT DEBUG: Tools empty, falling back to simulated.")
                     swiggy_tools = SIMULATED_TOOLS
                     
-                return await execute_agent(swiggy_tools, user_input)
+                return await execute_agent_with_trace(swiggy_tools, user_input)
 
-async def process_request(user_input: str) -> str:
-    """Process a user request using the agent, wrapped in an MCP connection."""
+async def process_request_detailed(user_input: str) -> tuple[str, list[dict]]:
+    """Process a user request and return both final agent output and structured thought traces."""
     token = get_swiggy_access_token()
     base_auth_url = get_auth_base_url()
     
     if not token:
-        return f"Authentication required. Please link your Swiggy account to continue: {base_auth_url}/login"
+        return f"Authentication required. Please link your Swiggy account to continue: {base_auth_url}/login", []
         
     print(f"DEBUG: Attempting Official SSE POST Transport with token: {token[:10]}...")
     
@@ -222,10 +231,15 @@ async def process_request(user_input: str) -> str:
                     client.post(f"{base_auth_url}/token/revoke")
             except Exception:
                 pass
-            return f"Session expired or unauthorized (401). Please re-authenticate via: {base_auth_url}/login"
+            return f"Session expired or unauthorized (401). Please re-authenticate via: {base_auth_url}/login", []
             
         print("STDOUT DEBUG: Falling back to simulated Swiggy tools for demo due to failure.")
-        return await execute_agent(SIMULATED_TOOLS, user_input)
+        return await execute_agent_with_trace(SIMULATED_TOOLS, user_input)
+
+async def process_request(user_input: str) -> str:
+    """Process a user request using the agent, wrapped in an MCP connection."""
+    final_msg, _ = await process_request_detailed(user_input)
+    return final_msg
 
 if __name__ == "__main__":
     import asyncio
@@ -251,7 +265,7 @@ if __name__ == "__main__":
             "My addressId is 'ctvea5srb5vobit8qosg'. Execute these exact steps:\n"
             "1. Call get_food_cart(addressId='ctvea5srb5vobit8qosg').\n"
             "2. Call update_food_cart(addressId='ctvea5srb5vobit8qosg', restaurantId='924525', cartItems=[{'menu_item_id': '201372805', 'quantity': 1}]).\n"
-            "3. Do not call any further tools. Extract the live cart_id from Step 2's response and print 'https://staging.swiggy.com/checkout/{cart_id}'."
+            "3. Do not call any further tools. Extract the live cart_id from Step 2's response and print 'https://www.swiggy.com/checkout/{cart_id}'."
         )
         res = await process_request(user_input)
         print(res)
