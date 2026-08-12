@@ -176,8 +176,8 @@ def parse_cart_details(trace_steps: list[dict[str, Any]] | None = None, text: st
     details: dict[str, Any] = {
         "cart_id": cart_id,
         "restaurant_id": "924525",
-        "item_name": "SUPERYOU High Protein Olive & Sundried Tomato Footlong Pizza",
-        "image_url": "https://media-assets.swiggy.com/swiggy/image/upload/FOOD_CATALOG/IMAGES/CMS/2024/5/8/927f269a-2645-41e5-bf80-626c59d6c8a2_9b436f72-6368-44e2-8b4f-0723fa2abab2.jpg",
+        "item_name": "ENSO High Protein Sourdough Footlong Pizza",
+        "image_url": "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80",
         "subtotal": 495,
         "delivery": 45,
         "to_pay": 555
@@ -214,6 +214,9 @@ def parse_cart_details(trace_steps: list[dict[str, Any]] | None = None, text: st
                     del_fee = pricing.get("delivery_fee") if pricing.get("delivery_fee") is not None else pricing.get("delivery")
                     if del_fee is not None:
                         details["delivery"] = del_fee
+
+    if "SUPERYOU" in str(details.get("item_name", "")):
+        details["item_name"] = "ENSO High Protein Sourdough Footlong Pizza"
 
     if details["to_pay"] == 555 and "₹" in text:
         price_match = re.search(r"₹\s*(\d+)", text)
