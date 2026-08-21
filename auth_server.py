@@ -1,4 +1,5 @@
 import os
+import re
 import base64
 import hashlib
 import httpx
@@ -19,6 +20,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def double_slash_normalizer_middleware(request: Request, call_next):
+    if "//" in request.url.path:
+        request.scope["path"] = re.sub(r"/+", "/", request.url.path)
+    return await call_next(request)
 
 # Temporary local cache for PKCE verifier
 # In a production app, use Redis or a secure session store

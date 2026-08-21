@@ -11,7 +11,7 @@ import { ParetoCard } from "@/components/ParetoCard";
 import { McpTerminalDrawer } from "@/components/McpTerminalDrawer";
 import { Search, Loader2, Zap, Link2 } from "lucide-react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 interface Address {
   addressId: string;
@@ -48,42 +48,7 @@ export default function Home() {
     { tool: "create_dual_fleet_cart", status: "SUCCESS", payload: { food_cart_id: "530602039", instamart_cart_id: "im_948201735" } }
   ]);
 
-  const [hybridState, setHybridState] = useState<any>({
-    selected_food_item: {
-      name: "Grilled Peri-Peri Chicken Breast Bowl",
-      restaurant_name: "FitBowl Kitchen",
-      final_price: 280,
-      dietary_type: "NON_VEG",
-      imageUrl: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80",
-      estimated_macros: { protein_g: 42, calories_kcal: 440, carbs_g: 28, fats_g: 10 }
-    },
-    selected_instamart_items: [
-      {
-        item_id: "im_948201",
-        name: "Amul High Protein Lassi 200ml",
-        final_price: 25,
-        delivery_tag: "⚡ 10-min Delivery",
-        imageUrl: "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=500&auto=format&fit=crop&q=80",
-        estimated_macros: { protein_g: 15, calories_kcal: 115 }
-      }
-    ],
-    total_protein: 57,
-    total_calories: 555,
-    total_carbs: 33,
-    total_fats: 11.5,
-    items_subtotal: 305,
-    food_delivery_fee: 35,
-    instamart_delivery_fee: 15,
-    taxes_fees: 25,
-    total_payable: 380,
-    cost_savings_vs_single_fleet: 225,
-    food_cart_id: "530602039",
-    instamart_cart_id: "im_948201735",
-    food_eta_mins: 32,
-    instamart_eta_mins: 12,
-    is_pareto_fallback: false,
-    pareto_options: {}
-  });
+  const [hybridState, setHybridState] = useState<any>(null);
 
   const checkMcpToken = async (): Promise<boolean> => {
     try {
@@ -138,37 +103,22 @@ export default function Home() {
     }, 1000);
   };
 
-  useEffect(() => {
-    async function fetchAddresses() {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/addresses`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.addresses && data.addresses.length > 0) {
-            setAddresses(data.addresses);
-          }
-        }
-      } catch (err) {
-        console.warn("Using sandbox addresses fallback:", err);
-      }
-    }
-    fetchAddresses();
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === "SWIGGY_AUTH_SUCCESS" || event.data === "swiggy_oauth_success") {
-        setIsMcpTokenActive(true);
-        setExecutionMode("live_mcp");
-        setShowOAuthModal(false);
-        checkMcpToken();
-      }
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, []);
-
-  const handleOptimize = async (customPrompt?: string, customAddressId?: string) => {
+  const handleOptimize = async (
+    customPrompt?: string,
+    customAddressId?: string,
+    customDiet?: DietaryType,
+    customProtein?: number,
+    customCalories?: number,
+    customBudget?: number
+  ) => {
     const addrId = customAddressId || selectedAddressId;
-    const promptToUse = customPrompt || userQuery || `${targetProtein}g protein under ₹${maxBudget} and <${maxCalories} kcal`;
+    const dietToUse = customDiet || dietaryPreference;
+    const proteinToUse = customProtein ?? targetProtein;
+    const caloriesToUse = customCalories ?? maxCalories;
+    const budgetToUse = customBudget ?? maxBudget;
+
+    const dietPrefix = dietToUse !== "ALL" ? `${dietToUse} ` : "";
+    const promptToUse = customPrompt || userQuery || `${dietPrefix}${proteinToUse}g protein under ₹${budgetToUse} and <${caloriesToUse} kcal`;
     setIsLoading(true);
     setSelectedParetoOption("A");
 
@@ -180,11 +130,11 @@ export default function Home() {
           prompt: promptToUse,
           user_query: promptToUse,
           execution_mode: executionMode,
-          dietary_preference: dietaryPreference,
+          dietary_preference: dietToUse,
           address_id: addrId,
-          target_protein: targetProtein,
-          max_calories: maxCalories,
-          max_budget: maxBudget,
+          target_protein: proteinToUse,
+          max_calories: caloriesToUse,
+          max_budget: budgetToUse,
         }),
       });
 
@@ -205,6 +155,40 @@ export default function Home() {
     }
   };
 
+  useEffect(() => {
+    async function init() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/addresses`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.addresses && data.addresses.length > 0) {
+            setAddresses(data.addresses);
+          }
+        }
+      } catch (err) {
+        console.warn("Using sandbox addresses fallback:", err);
+      }
+      handleOptimize();
+    }
+    init();
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "SWIGGY_AUTH_SUCCESS" || event.data === "swiggy_oauth_success") {
+        setIsMcpTokenActive(true);
+        setExecutionMode("live_mcp");
+        setShowOAuthModal(false);
+        checkMcpToken();
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  const handleDietaryPreferenceChange = (diet: DietaryType) => {
+    setDietaryPreference(diet);
+    handleOptimize(undefined, undefined, diet);
+  };
+
   const handleAddressChange = (addressId: string) => {
     setSelectedAddressId(addressId);
     handleOptimize(undefined, addressId);
@@ -212,10 +196,12 @@ export default function Home() {
 
   const handleReset = () => {
     setUserQuery("");
+    setDietaryPreference("ALL");
     setHybridState(null);
     setApiData(null);
     setTraceSteps([]);
     setSelectedParetoOption("A");
+    handleOptimize("", undefined, "ALL");
   };
 
   // Dynamic evaluation based on active Pareto selection (Option A vs Option B)
@@ -252,13 +238,22 @@ export default function Home() {
         {/* Left Sticky Sidebar Filters */}
         <SidebarFilters
           dietaryPreference={dietaryPreference}
-          setDietaryPreference={setDietaryPreference}
+          setDietaryPreference={handleDietaryPreferenceChange}
           targetProtein={targetProtein}
-          setTargetProtein={setTargetProtein}
+          setTargetProtein={(p) => {
+            setTargetProtein(p);
+            handleOptimize(undefined, undefined, undefined, p);
+          }}
           maxCalories={maxCalories}
-          setMaxCalories={setMaxCalories}
+          setMaxCalories={(c) => {
+            setMaxCalories(c);
+            handleOptimize(undefined, undefined, undefined, undefined, c);
+          }}
           maxBudget={maxBudget}
-          setMaxBudget={setMaxBudget}
+          setMaxBudget={(b) => {
+            setMaxBudget(b);
+            handleOptimize(undefined, undefined, undefined, undefined, undefined, b);
+          }}
           onResetHistory={handleReset}
         />
 
