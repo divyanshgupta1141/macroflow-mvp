@@ -749,32 +749,20 @@ async def optimize_meal_combination(
         "is_pareto_fallback": is_tradeoff_required,
         "pareto_options": {
             "option_a": {
+                **option_a,
                 "title": "Hit Protein Goal",
                 "description": opt_a_desc,
                 "protein": option_a.get("total_protein", 0),
                 "calories": option_a.get("total_calories", 0),
                 "cost": option_a.get("total_payable", 0),
-                "total_p": option_a.get("total_protein", 0),
-                "total_c": option_a.get("total_calories", 0),
-                "total_payable": option_a.get("total_payable", 0),
-                "food": option_a.get("restaurant_dish"),
-                "instamart": option_a.get("boosters"),
-                "restaurant_dish": option_a.get("restaurant_dish"),
-                "boosters": option_a.get("boosters")
             },
             "option_b": {
+                **option_b,
                 "title": "Strict Budget Cap",
                 "description": f"Strictly respects ₹{req.max_budget} cap",
                 "protein": option_b.get("total_protein", 0),
                 "calories": option_b.get("total_calories", 0),
                 "cost": option_b.get("total_payable", 0),
-                "total_p": option_b.get("total_protein", 0),
-                "total_c": option_b.get("total_calories", 0),
-                "total_payable": option_b.get("total_payable", 0),
-                "food": option_b.get("restaurant_dish"),
-                "instamart": option_b.get("boosters"),
-                "restaurant_dish": option_b.get("restaurant_dish"),
-                "boosters": option_b.get("boosters")
             }
         }
     }
