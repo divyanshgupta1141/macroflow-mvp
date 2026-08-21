@@ -290,12 +290,22 @@ export default function Home() {
                 Connect your Swiggy account to stream live MCP staging tools (<code className="text-[#FC8019] bg-zinc-950 px-1.5 py-0.5 rounded">mcp.swiggy.com/food</code> + <code className="text-orange-400 bg-zinc-950 px-1.5 py-0.5 rounded">mcp.swiggy.com/im</code>).
               </p>
               <div className="pt-2 flex justify-center gap-3">
-                <button
-                  onClick={handleStartOAuth}
-                  className="px-5 py-2.5 rounded-xl bg-[#FC8019] hover:bg-orange-600 text-white font-extrabold text-xs shadow-lg shadow-orange-500/20 flex items-center gap-2 cursor-pointer transition-all"
+                <a
+                  href={`${API_BASE_URL}/login`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    const interval = setInterval(async () => {
+                      const active = await checkMcpToken();
+                      if (active) {
+                        clearInterval(interval);
+                      }
+                    }, 1000);
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-[#FC8019] hover:bg-orange-600 text-white font-extrabold text-xs shadow-lg shadow-orange-500/20 flex items-center gap-2 cursor-pointer transition-all inline-flex items-center"
                 >
                   <Link2 className="w-4 h-4" /> Authenticate via Swiggy OAuth
-                </button>
+                </a>
                 <button
                   onClick={() => handleSelectMode("sandbox")}
                   className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold cursor-pointer transition-all"
