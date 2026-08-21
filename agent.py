@@ -448,6 +448,17 @@ async def optimize_meal_combination(
     client = SwiggyMCPClient(token=token if req.execution_mode == "live_mcp" else None)
 
     user_prompt = req.prompt or req.user_query or ""
+    if user_prompt:
+        parsed_p, parsed_c, parsed_b, _, parsed_diet = parse_user_constraints(user_prompt)
+        if re.search(r"\d+\s*g?\s*protein", user_prompt, re.IGNORECASE):
+            req.target_protein = parsed_p
+        if re.search(r"\d+\s*kcal", user_prompt, re.IGNORECASE):
+            req.max_calories = parsed_c
+        if re.search(r"(?:under|budget|max|cost|price|₹)\s*[:=<=]?\s*₹?\s*\d+", user_prompt, re.IGNORECASE) or re.search(r"₹\s*\d+", user_prompt):
+            req.max_budget = parsed_b
+        if parsed_diet != "ALL" and req.dietary_preference == "ALL":
+            req.dietary_preference = parsed_diet
+
     requested_keyword = extract_search_keyword(user_prompt, req.dietary_preference)
     is_alternative = False
 

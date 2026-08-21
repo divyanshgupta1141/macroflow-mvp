@@ -145,6 +145,9 @@ export default function Home() {
         if (data.state) {
           setHybridState(data.state);
         }
+        setTargetProtein(proteinToUse);
+        setMaxCalories(caloriesToUse);
+        setMaxBudget(budgetToUse);
       } else {
         console.error("Optimization endpoint returned non-200 status");
       }
