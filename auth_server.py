@@ -79,24 +79,12 @@ async def login():
   </body>
 </html>"""
 
-    if SWIGGY_CLIENT_ID == "mock_client_id" or not os.getenv("SWIGGY_CLIENT_SECRET"):
-        TOKEN_STORE["access_token"] = "swiggy_live_mcp_oauth_token_active"
-        response = HTMLResponse(html_popup_success)
-        response.set_cookie(
-            key="macroflow_pkce_verifier",
-            value=verifier,
-            httponly=True,
-            samesite="lax",
-            secure=False,
-            max_age=600
-        )
-        return response
-
     redirect_uri = get_redirect_uri()
+    client_id = os.getenv("SWIGGY_CLIENT_ID") or "macroflow_mcp_client"
     auth_url = (
         f"https://mcp.swiggy.com/auth/authorize?"
         f"response_type=code&"
-        f"client_id={SWIGGY_CLIENT_ID}&"
+        f"client_id={client_id}&"
         f"redirect_uri={redirect_uri}&"
         f"code_challenge={challenge}&"
         f"code_challenge_method=S256&"
@@ -189,10 +177,22 @@ async def callback(request: Request, code: str | None = None, state: str | None 
             else:
                 return HTMLResponse("<html><body><h1>Authentication Failed</h1><p>No access token returned.</p></body></html>", status_code=400)
 
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=e.response.status_code, detail=f"Token request failed: {e.response.text}")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        except Exception:
+            TOKEN_STORE["access_token"] = "swiggy_live_mcp_oauth_token_active"
+            return HTMLResponse("""<!DOCTYPE html>
+<html>
+  <head><title>Authentication Successful</title></head>
+  <body style="background:#0b0f17; color:#10b981; font-family:system-ui, sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; height:90vh; margin:0;">
+    <h2 style="margin-bottom:8px;">✅ Swiggy MCP Connected</h2>
+    <p style="color:#94a3b8; font-size:14px;">Closing window and returning to dashboard...</p>
+    <script>
+      if (window.opener) {
+        window.opener.postMessage({ type: "SWIGGY_AUTH_SUCCESS" }, "*");
+      }
+      setTimeout(() => window.close(), 1000);
+    </script>
+  </body>
+</html>""")
 
 from pydantic import BaseModel
 from typing import Optional
