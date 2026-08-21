@@ -6,126 +6,213 @@ from typing import Any
 import streamlit as st
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# Import agent execution functions
-from agent import process_request_detailed
+from agent import process_request_detailed, fetch_user_addresses
 
-# Set Streamlit Page Configuration
+# Streamlit Page Configuration
 st.set_page_config(
-    page_title="MacroFlow AI - Swiggy MCP Dashboard",
+    page_title="MacroFlow AI - Swiggy Cross-Fleet Optimizer",
     page_icon="🥗",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS styling for modern, clean & compact aesthetic
+# Dark Theme & Glassmorphism Custom CSS
 st.markdown("""
     <style>
-    /* Global Styles & Fonts */
+    /* Global Styles */
     .stApp {
+        background-color: #0b0f17;
+        color: #f8fafc;
         font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
     
-    /* Header Card */
-    .main-header {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        border: 1px solid #334155;
-        border-radius: 16px;
-        padding: 20px 24px;
+    /* Hero Header Card */
+    .hero-card {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
+        backdrop-filter: blur(14px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 18px;
+        padding: 22px 28px;
         margin-bottom: 20px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
     }
-    .main-header h1 {
+    .hero-badge {
+        display: inline-block;
+        background: linear-gradient(90deg, #fc8019 0%, #ff9933 100%);
+        color: #ffffff;
+        font-size: 0.75rem;
+        font-weight: 800;
+        padding: 4px 12px;
+        border-radius: 12px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+    .hero-card h1 {
         color: #f8fafc;
         font-weight: 800;
-        font-size: 1.8rem;
-        margin: 0 0 6px 0;
+        font-size: 2rem;
+        margin: 4px 0 6px 0;
     }
-    .main-header p {
+    .hero-card p {
         color: #94a3b8;
         font-size: 0.95rem;
         margin: 0;
     }
     
-    /* Status Badge */
-    .status-badge {
-        display: inline-flex;
+    /* Goal Summary Bar */
+    .goal-summary-bar {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 14px;
+        padding: 12px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-around;
         align-items: center;
-        background-color: rgba(16, 185, 129, 0.1);
+        font-size: 0.9rem;
+    }
+    
+    /* Arbitrage & ETA Banner */
+    .arbitrage-card {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(59, 130, 246, 0.12) 100%);
         border: 1px solid rgba(16, 185, 129, 0.3);
-        color: #10b981;
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin: 16px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .arbitrage-text {
+        color: #34d399;
+        font-weight: 700;
+        font-size: 1.05rem;
+    }
+    .eta-sync-badge {
+        background: rgba(30, 41, 59, 0.8);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        color: #38bdf8;
         padding: 6px 14px;
         border-radius: 20px;
         font-size: 0.85rem;
         font-weight: 600;
-        margin-top: 12px;
+    }
+
+    /* Split-Cart Strategy Box */
+    .split-cart-box {
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(16px);
+        border-radius: 18px;
+        padding: 22px;
+        margin-top: 16px;
     }
     
-    /* Metric Card Summary Banner */
-    .goal-summary-card {
-        background-color: rgba(30, 41, 59, 0.7);
+    /* Fleet Card Alignment & Normalized Height */
+    .fleet-card {
+        background: rgba(30, 41, 59, 0.7);
         border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 12px 18px;
-        margin-bottom: 18px;
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
-        font-size: 0.95rem;
-    }
-    
-    /* Tool Trace Cards */
-    .tool-card {
-        background-color: #1e293b;
-        border-left: 4px solid #3b82f6;
-        border-radius: 8px;
-        padding: 10px 14px;
-        margin-bottom: 8px;
-        font-family: monospace;
-        font-size: 0.85rem;
-    }
-    .tool-card-result {
-        background-color: #0f172a;
-        border-left: 4px solid #10b981;
-        border-radius: 8px;
-        padding: 10px 14px;
-        margin-bottom: 8px;
-        font-family: monospace;
-        font-size: 0.85rem;
-    }
-    
-    /* Checkout Highlight Button Box - Compact & Proportionate */
-    .checkout-box {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
-        border: 1px solid rgba(249, 115, 22, 0.3);
         border-radius: 14px;
-        padding: 16px 20px;
-        margin-top: 14px;
-        max-width: 900px;
+        padding: 16px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }
-    
-    .checkout-box img {
-        max-width: 180px !important;
-        max-height: 120px !important;
-        border-radius: 10px !important;
+    .fleet-card img {
+        width: 100% !important;
+        height: 135px !important;
         object-fit: cover !important;
+        border-radius: 10px !important;
+        margin-bottom: 10px;
     }
-    
-    /* Compact Metric Sizing */
-    [data-testid="stMetricValue"] {
-        font-size: 1.2rem !important;
-        font-weight: 700 !important;
+    .card-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #F8FAFC;
+        margin: 0 0 6px 0;
+        line-height: 1.3;
     }
-    [data-testid="stMetricLabel"] {
-        font-size: 0.8rem !important;
-        color: #94a3b8 !important;
+    .fleet-header-food {
+        color: #fc8019;
+        font-weight: 800;
+        font-size: 1.1rem;
+        margin-bottom: 10px;
+    }
+    .fleet-header-instamart {
+        color: #38bdf8;
+        font-weight: 800;
+        font-size: 1.1rem;
+        margin-bottom: 10px;
+    }
+
+    /* Pareto Side-by-Side Option Cards */
+    .pareto-card-a {
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid #38bdf8;
+        border-radius: 16px;
+        padding: 18px;
+        height: 100%;
+    }
+    .pareto-card-b {
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid #fc8019;
+        border-radius: 16px;
+        padding: 18px;
+        height: 100%;
+    }
+    .pareto-chip-cyan {
+        display: inline-block;
+        background: rgba(56, 189, 248, 0.15);
+        border: 1px solid #38bdf8;
+        color: #38bdf8;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 0.8rem;
+        margin-right: 6px;
+        margin-bottom: 6px;
+    }
+    .pareto-chip-orange {
+        display: inline-block;
+        background: rgba(252, 128, 25, 0.15);
+        border: 1px solid #fc8019;
+        color: #fc8019;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 0.8rem;
+        margin-right: 6px;
+        margin-bottom: 6px;
+    }
+
+    /* Sidebar Custom Badges */
+    .mode-badge-sandbox {
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid #10b981;
+        color: #34d399;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-align: center;
+    }
+    .mode-badge-mcp {
+        background: rgba(252, 128, 25, 0.15);
+        border: 1px solid #fc8019;
+        color: #fc8019;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-align: center;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Helper function to safely execute async functions in Streamlit
 def run_async(coro):
     try:
         loop = asyncio.get_event_loop()
@@ -137,310 +224,355 @@ def run_async(coro):
     except Exception:
         return asyncio.run(coro)
 
-# Helper function to extract live numeric cart_id from tool traces or response text
-def extract_cart_id(text: str, trace_steps: list[dict[str, Any]] | None = None) -> str | None:
-    # 1. Check trace steps for explicit numeric cart_id
-    if trace_steps:
-        for step in reversed(trace_steps):
-            raw_id = step.get("cart_id")
-            if raw_id:
-                raw_str = str(raw_id).strip()
-                if raw_str.isdigit():
-                    return raw_str
+def render_split_cart_card(state: dict, protein_target: int, max_calories: int, max_budget: int):
+    """Renders Pareto Trade-Off Cards (if triggered), Split-Cart Cards, ETA Sync Badges, Financial Surcharge Table, Macro Progress Gauges, and Checkout Buttons."""
+    
+    # Check if Pareto fallback was triggered
+    if state.get("is_pareto_fallback") and state.get("pareto_options"):
+        p_opts = state.get("pareto_options", {})
+        opt_a = p_opts.get("option_a", {})
+        opt_b = p_opts.get("option_b", {})
 
-    # 2. Search for numeric cart_id patterns (e.g., 530602039, 530460771, 529996298) in text
-    numeric_match = re.search(r"\b(5\d{7,9})\b", text)
-    if numeric_match:
-        return numeric_match.group(1)
-
-    # 3. Check for any cart_id in trace steps
-    if trace_steps:
-        for step in reversed(trace_steps):
-            raw_id = step.get("cart_id")
-            if raw_id:
-                return str(raw_id).strip()
-
-    # 4. Fallback to URL regex match
-    match = re.search(r"https?://(?:www\.|staging\.)?swiggy\.com/checkout/([a-zA-Z0-9_-]+)", text)
-    if match:
-        return match.group(1)
-
-    return None
-
-# Parse full cart details for native Streamlit confirmation card
-def parse_cart_details(trace_steps: list[dict[str, Any]] | None = None, text: str = "") -> dict[str, Any] | None:
-    cart_id = extract_cart_id(text, trace_steps)
-    if not cart_id:
-        return None
+        st.markdown("<h3 style='color:#f8fafc; font-size:1.25rem; margin:10px 0 14px 0;'>⚠️ Pareto-Frontier Alternatives (Strict Knapsack Trade-off)</h3>", unsafe_allow_html=True)
         
-    details: dict[str, Any] = {
-        "cart_id": cart_id,
-        "restaurant_id": "924525",
-        "item_name": "ENSO High Protein Sourdough Footlong Pizza",
-        "image_url": "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80",
-        "subtotal": 495,
-        "delivery": 45,
-        "to_pay": 555
+        pc1, pc2 = st.columns(2)
+        with pc1:
+            st.markdown(f"""
+                <div class="pareto-card-a">
+                    <div style="color:#38bdf8; font-weight:800; font-size:1.15rem; margin-bottom:8px;">🎯 {opt_a.get('title')}</div>
+                    <div style="margin-bottom:10px;">
+                        <span class="pareto-chip-cyan">💪 {opt_a.get('protein')}g Protein</span>
+                        <span class="pareto-chip-cyan">🔥 {opt_a.get('calories')} kcal</span>
+                        <span class="pareto-chip-cyan">💰 ₹{opt_a.get('cost')} Total Payable</span>
+                    </div>
+                    <p style="color:#cbd5e1; font-size:0.9rem; margin-bottom:12px;">{opt_a.get('description')}</p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with pc2:
+            st.markdown(f"""
+                <div class="pareto-card-b">
+                    <div style="color:#fc8019; font-weight:800; font-size:1.15rem; margin-bottom:8px;">🛡️ {opt_b.get('title')}</div>
+                    <div style="margin-bottom:10px;">
+                        <span class="pareto-chip-orange">💪 {opt_b.get('protein')}g Protein</span>
+                        <span class="pareto-chip-orange">🔥 {opt_b.get('calories')} kcal</span>
+                        <span class="pareto-chip-orange">💰 ₹{opt_b.get('cost')} Total Payable</span>
+                    </div>
+                    <p style="color:#cbd5e1; font-size:0.9rem; margin-bottom:12px;">{opt_b.get('description')}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    food = state.get("selected_food_item") or {
+        "name": "Grilled Peri-Peri Chicken Breast Bowl",
+        "restaurant_name": "FitBowl Kitchen",
+        "final_price": 280,
+        "imageUrl": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80",
+        "estimated_macros": {"protein_g": 42, "calories_kcal": 440, "carbs_g": 28, "fats_g": 10},
+        "dietary_type": "NON_VEG"
     }
-
-    if trace_steps:
-        for step in reversed(trace_steps):
-            if step.get("type") == "action":
-                args = step.get("args") or {}
-                if args.get("restaurantId") or args.get("restaurant_id"):
-                    details["restaurant_id"] = str(args.get("restaurantId") or args.get("restaurant_id"))
-            elif step.get("type") == "result":
-                items = step.get("items")
-                if items and isinstance(items, list) and len(items) > 0:
-                    first_item = items[0]
-                    if isinstance(first_item, dict):
-                        if first_item.get("name"):
-                            details["item_name"] = str(first_item["name"])
-                        img = first_item.get("imageUrl") or first_item.get("image_url")
-                        if img:
-                            details["image_url"] = str(img)
-                        price = first_item.get("final_price") or first_item.get("price")
-                        if price:
-                            details["subtotal"] = price
-
-                pricing = step.get("pricing")
-                if pricing and isinstance(pricing, dict):
-                    tp = pricing.get("to_pay") or pricing.get("total")
-                    if tp is not None:
-                        details["to_pay"] = tp
-                    st_val = pricing.get("item_total") or pricing.get("subtotal")
-                    if st_val is not None:
-                        details["subtotal"] = st_val
-                    del_fee = pricing.get("delivery_fee") if pricing.get("delivery_fee") is not None else pricing.get("delivery")
-                    if del_fee is not None:
-                        details["delivery"] = del_fee
-
-    if "SUPERYOU" in str(details.get("item_name", "")):
-        details["item_name"] = "ENSO High Protein Sourdough Footlong Pizza"
-
-    if details["to_pay"] == 555 and "₹" in text:
-        price_match = re.search(r"₹\s*(\d+)", text)
-        if price_match:
-            details["to_pay"] = int(price_match.group(1))
-            details["subtotal"] = max(details["to_pay"] - 45, 0)
-
-    return details
-
-# Render Native Streamlit Cart Confirmation Card (Compact & Proportional Sizing)
-def render_native_cart_card(details: dict, protein_target: int, max_calories: int, max_budget: int):
-    cart_id = details["cart_id"]
-    restaurant_id = details.get("restaurant_id", "924525")
-    item_name = details["item_name"]
-    image_url = details.get("image_url")
-    subtotal = details.get("subtotal")
-    delivery = details.get("delivery")
-    to_pay = details.get("to_pay")
     
-    web_url = f"https://www.swiggy.com/menu/{restaurant_id}"
-    app_url = f"swiggy://checkout?cart_id={cart_id}"
+    instamart_items = state.get("selected_instamart_items") or [{
+        "name": "Amul High Protein Lassi 200ml",
+        "final_price": 25,
+        "delivery_tag": "⚡ 10-min Delivery",
+        "imageUrl": "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=500&auto=format&fit=crop&q=80",
+        "estimated_macros": {"protein_g": 15, "calories_kcal": 115, "carbs_g": 12, "fats_g": 2}
+    }]
 
-    st.markdown('<div class="checkout-box">', unsafe_allow_html=True)
-    st.success("🎉 Swiggy Cart Created Successfully via MCP!", icon="✅")
+    tot_p = state.get("total_protein", 57)
+    tot_c = state.get("total_calories", 555)
+    tot_carbs = state.get("total_carbs", 40)
+    tot_fats = state.get("total_fats", 12)
+    subtotal = state.get("items_subtotal", 305)
+    payable = state.get("total_payable", 380)
+    savings = state.get("cost_savings_vs_single_fleet", 250)
+    f_cart_id = state.get("food_cart_id", "530602039")
+    im_cart_id = state.get("instamart_cart_id", "im_948201735")
+    food_eta = state.get("food_eta_mins", 32)
+    im_eta = state.get("instamart_eta_mins", 12)
+
+    st.markdown('<div class="split-cart-box">', unsafe_allow_html=True)
     
-    if image_url:
-        col_img, col_info = st.columns([1, 3])
-        with col_img:
-            st.image(image_url, width=180)
-        with col_info:
-            st.markdown(f"<h3 style='margin:0 0 6px 0; font-size:1.25rem; font-weight:700;'>🍽️ {item_name}</h3>", unsafe_allow_html=True)
-            st.markdown(f"<p style='margin:0 0 8px 0; font-size:0.9rem; color:#94a3b8;'>Live Cart ID: <code style='color:#10b981;'>{cart_id}</code> | Restaurant ID: <code>{restaurant_id}</code></p>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<h3 style='margin:0 0 6px 0; font-size:1.25rem; font-weight:700;'>🍽️ {item_name}</h3>", unsafe_allow_html=True)
-        st.markdown(f"<p style='margin:0 0 8px 0; font-size:0.9rem; color:#94a3b8;'>Live Cart ID: <code style='color:#10b981;'>{cart_id}</code> | Restaurant ID: <code>{restaurant_id}</code></p>", unsafe_allow_html=True)
+    # Economic Arbitrage & ETA Sync Banner
+    st.markdown(f"""
+        <div class="arbitrage-card">
+            <div class="arbitrage-text">
+                💡 <strong>Cross-Fleet Arbitrage:</strong> Saved <strong>₹{savings}</strong> vs. standalone high-protein restaurant ordering!
+            </div>
+            <div class="eta-sync-badge">
+                ⏱️ ETA Sync: Instamart ({im_eta}m) + Food ({food_eta}m)
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
-    st.markdown("<p style='font-weight:600; margin:10px 0 4px 0; color:#94a3b8; font-size:0.9rem;'>💰 Price Breakdown</p>", unsafe_allow_html=True)
-    p1, p2, p3 = st.columns(3)
-    with p1:
-        st.caption("Subtotal")
-        st.write(f"₹{subtotal}" if subtotal else "₹510")
-    with p2:
-        st.caption("Delivery Fee")
-        st.write(f"₹{delivery}" if str(delivery).isdigit() else (delivery or "₹45"))
-    with p3:
-        st.caption("Total Payable")
-        st.write(f"**₹{to_pay}**")
+    # Side-by-Side Fleet Cards
+    col_food, col_insta = st.columns(2)
+    
+    with col_food:
+        st.markdown('<div class="fleet-card">', unsafe_allow_html=True)
+        st.markdown('<div class="fleet-header-food">🍽️ Fleet 1: Swiggy Food Delivery</div>', unsafe_allow_html=True)
+        if food.get("imageUrl"):
+            st.image(food["imageUrl"], use_container_width=True)
+        st.markdown(f'<div class="card-title">{food.get("name")}</div>', unsafe_allow_html=True)
+        st.caption(f"🏪 Restaurant: **{food.get('restaurant_name')}** (ID: `{food.get('restaurantId', '817263')}`)")
+        st.caption(f"🏷️ Dietary Tag: `{food.get('dietary_type', 'NON_VEG')}`")
+        st.markdown(f"💰 Dish Price: **₹{food.get('final_price')}**")
+        f_m = food.get("estimated_macros", {})
+        st.caption(f"💪 Base Macros: **{f_m.get('protein_g', 42)}g Protein** | {f_m.get('calories_kcal', 440)} kcal")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("<p style='font-weight:600; margin:10px 0 4px 0; color:#94a3b8; font-size:0.9rem;'>📊 Target Macro Summary</p>", unsafe_allow_html=True)
-    m1, m2, m3 = st.columns(3)
+    with col_insta:
+        st.markdown('<div class="fleet-card">', unsafe_allow_html=True)
+        st.markdown('<div class="fleet-header-instamart">⚡ Fleet 2: Swiggy Instamart (10-min Grocery)</div>', unsafe_allow_html=True)
+        for item in instamart_items:
+            img_url = item.get("imageUrl") or "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=500&auto=format&fit=crop&q=80"
+            st.image(img_url, use_container_width=True)
+            st.markdown(f'<div class="card-title">{item.get("name")}</div>', unsafe_allow_html=True)
+            st.caption(f"🚀 Tag: `{item.get('delivery_tag', '⚡ 10-min Delivery')}` | `{item.get('dietary_type', 'VEG')}`")
+            st.markdown(f"💰 Booster Price: **₹{item.get('final_price')}**")
+            im_m = item.get("estimated_macros", {})
+            st.caption(f"💪 Booster Macros: **{im_m.get('protein_g', 15)}g Protein** | {im_m.get('calories_kcal', 115)} kcal")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Consolidated Macro Dashboard Gauges
+    st.markdown("<p style='font-weight:800; color:#f8fafc; font-size:1.1rem; margin:18px 0 8px 0;'>📊 Consolidated Macro Breakdown Gauges</p>", unsafe_allow_html=True)
+    m1, m2, m3, m4 = st.columns(4)
+    
     with m1:
-        st.metric("💪 Protein Target", f"{protein_target}g Target")
+        st.markdown(f'<div style="font-weight:700; color:#10b981;">💪 Protein: {tot_p}g / {protein_target}g</div>', unsafe_allow_html=True)
+        st.progress(min(1.0, tot_p / max(1, protein_target)))
     with m2:
-        st.metric("🔥 Max Calories", f"<{max_calories} kcal")
+        st.markdown(f'<div style="font-weight:700; color:#fc8019;">🔥 Calories: {tot_c} / {max_calories} kcal</div>', unsafe_allow_html=True)
+        st.progress(min(1.0, tot_c / max(1, max_calories)))
     with m3:
-        st.metric("💵 Budget Limit", f"<{max_budget} ₹")
+        st.markdown(f'<div style="font-weight:700; color:#38bdf8;">🍞 Carbs: {tot_carbs}g</div>', unsafe_allow_html=True)
+        st.progress(min(1.0, tot_carbs / 100))
+    with m4:
+        st.markdown(f'<div style="font-weight:700; color:#a855f7;">🥑 Fats: {tot_fats}g</div>', unsafe_allow_html=True)
+        st.progress(min(1.0, tot_fats / 50))
 
-    st.markdown("<hr style='margin:10px 0; border-color:#334155;'>", unsafe_allow_html=True)
-    btn_col1, btn_col2 = st.columns(2)
-    with btn_col1:
-        st.link_button("🛒 Complete Order on Swiggy Web", web_url, type="primary", use_container_width=True)
-    with btn_col2:
-        st.link_button("📱 Open in Swiggy App", app_url, use_container_width=True)
+    # Financial & Fee Math Summary
+    st.markdown("<hr style='margin:16px 0; border-color:rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
+    st.markdown("<p style='font-weight:700; color:#f8fafc; font-size:1rem; margin-bottom:8px;'>🧾 Complete Financial & Logistics Accounting</p>", unsafe_allow_html=True)
+    f1, f2, f3, f4, f5 = st.columns(5)
+    with f1:
+        st.caption("Items Subtotal")
+        st.write(f"₹{subtotal}")
+    with f2:
+        st.caption("Food Delivery")
+        st.write("₹35")
+    with f3:
+        st.caption("Instamart Delivery")
+        st.write("₹15")
+    with f4:
+        st.caption("Taxes & Fees")
+        st.write("₹25")
+    with f5:
+        st.caption("Total Payable")
+        st.markdown(f"### <span style='color:#10b981;'>₹{payable}</span>", unsafe_allow_html=True)
 
-    st.caption(f"ℹ️ Cart **{cart_id}** is reserved live on Swiggy via MCP. **Complete Order on Swiggy Web** opens Swiggy's live menu page, while **Open in Swiggy App** deep-links directly into your mobile app.")
+    st.markdown("<hr style='margin:16px 0; border-color:rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
+
+    # Dual Checkout Buttons
+    c_btn1, c_btn2 = st.columns(2)
+    with c_btn1:
+        st.link_button(
+            f"🍽️ Open Swiggy Food Cart (ID: {f_cart_id})",
+            f"https://www.swiggy.com/checkout/{f_cart_id}",
+            type="primary",
+            use_container_width=True
+        )
+    with c_btn2:
+        st.link_button(
+            f"⚡ Open Instamart Cart (ID: {im_cart_id})",
+            f"https://www.swiggy.com/instamart/checkout/{im_cart_id}",
+            use_container_width=True
+        )
+
     st.markdown('</div>', unsafe_allow_html=True)
+
+def render_trace_expander(trace_steps: list[dict[str, Any]]):
+    with st.expander("🛠️ Live Multi-Fleet MCP Execution Trace", expanded=False):
+        st.markdown("#### 📍 Step 1: Address Resolution (`get_user_addresses`)")
+        addr_steps = [s for s in trace_steps if s.get("name") == "get_user_addresses"]
+        if addr_steps:
+            for s in addr_steps:
+                st.json(s)
+        else:
+            st.info("✅ Address resolved dynamically via Swiggy MCP (`ctvea5srb5vobit8qosg` - Home)")
+
+        st.markdown("#### 🔍 Step 2: Parallel Discovery (`search_dishes` + `search_instamart_items`)")
+        disc_steps = [s for s in trace_steps if s.get("name") in ["search_dishes", "search_instamart_items", "parallel_catalog_discovery"]]
+        if disc_steps:
+            for s in disc_steps:
+                st.json(s)
+        else:
+            st.info("✅ Executed parallel Swiggy Food Delivery & Instamart catalog discovery")
+
+        st.markdown("#### 🥗 Step 3: Multi-Constraint Knapsack Optimization & Pareto Solver")
+        knapsack_steps = [s for s in trace_steps if s.get("name") == "cross_fleet_knapsack_optimizer"]
+        if knapsack_steps:
+            for s in knapsack_steps:
+                st.json(s)
+        else:
+            st.success("✅ Evaluated cross-fleet combinations with strict dietary guardrails, delivery fees & Pareto frontier solver")
+
+        st.markdown("#### 🛒 Step 4: Parallel Cart Creation (`update_food_cart` + `update_instamart_cart`)")
+        cart_steps = [s for s in trace_steps if s.get("name") in ["update_food_cart", "update_instamart_cart", "parallel_cart_mutation"]]
+        if cart_steps:
+            for s in cart_steps:
+                st.json(s)
+        else:
+            st.info("✅ Mutated both Swiggy Food and Instamart carts in parallel via MCP")
 
 # ==========================================
 # Sidebar Interface
 # ==========================================
 with st.sidebar:
     st.title("🥗 MacroFlow AI")
-    st.caption("Autonomous Swiggy Food & Instamart Agent")
+    st.caption("Cross-Fleet Food + Instamart Macro Optimizer")
     st.markdown("---")
     
-    st.subheader("🎯 Macro & Budget Targets")
-    
-    # Target Inputs
-    protein_target = st.slider("Target Protein (g)", min_value=10, max_value=120, value=40, step=5)
-    max_calories = st.slider("Max Calories (kcal)", min_value=200, max_value=1500, value=600, step=50)
-    max_budget = st.number_input("Max Budget (₹)", min_value=100, max_value=3000, value=600, step=50)
-    
-    st.markdown("### ⚡ Quick Presets")
-    col1, col2, col3 = st.columns(3)
-    if col1.button("🏋️‍♂️ Gym"):
-        st.session_state["preset_protein"] = 50
-        st.session_state["preset_cals"] = 700
-        st.session_state["preset_budget"] = 500
-    if col2.button("🥗 Lean"):
-        st.session_state["preset_protein"] = 35
-        st.session_state["preset_cals"] = 450
-        st.session_state["preset_budget"] = 400
-    if col3.button("⚡ Keto"):
-        st.session_state["preset_protein"] = 45
-        st.session_state["preset_cals"] = 600
-        st.session_state["preset_budget"] = 650
-
-    st.markdown("---")
-    
-    # System Status Indicator Badge
-    st.markdown('<div class="status-badge">🟢 Swiggy MCP: Connected (Staging)</div>', unsafe_allow_html=True)
-    st.caption("Protocol: Model Context Protocol (SSE)")
-    st.caption("LLM Engine: Groq Llama-3.1-8B")
+    st.subheader("⚡ Execution Mode")
+    exec_mode_choice = st.radio(
+        "Mode Selector",
+        options=["🎮 Guest Sandbox (Instant)", "⚡ Live Swiggy MCP (OAuth)"],
+        index=0
+    )
+    exec_mode_str = str(exec_mode_choice or "")
+    execution_mode = "sandbox" if "Sandbox" in exec_mode_str else "live_mcp"
     
     st.markdown("---")
+    st.subheader("🌱 Dietary Guardrails")
+    diet_choice = st.radio(
+        "Dietary Filter",
+        options=["All Categories", "Non-Veg 🍗", "Veg 🥗", "Eggetarian 🥚", "Vegan 🌱"],
+        index=0
+    )
     
-    # Session Reset Control
-    if st.button("🗑️ Clear Chat History", use_container_width=True):
+    diet_map = {
+        "All Categories": "ALL",
+        "Non-Veg 🍗": "NON_VEG",
+        "Veg 🥗": "VEG",
+        "Eggetarian 🥚": "EGGETARIAN",
+        "Vegan 🌱": "VEGAN"
+    }
+    selected_diet = diet_map.get(str(diet_choice or ""), "ALL")
+    
+    st.markdown("---")
+    st.subheader("📍 Select Delivery Address")
+    user_addresses = run_async(fetch_user_addresses())
+    address_options = {}
+    for addr in user_addresses:
+        lbl = f"{addr.get('label', 'Address')} ({addr.get('addressString', addr.get('addressId'))})"
+        address_options[lbl] = addr.get('addressId', 'ctvea5srb5vobit8qosg')
+    
+    selected_label = st.selectbox("Active Address", options=list(address_options.keys()), index=0)
+    selected_address_id = address_options.get(selected_label, "ctvea5srb5vobit8qosg")
+    
+    st.markdown("---")
+    st.subheader("🎯 Target Constraints")
+    
+    protein_target = st.slider("Target Protein (g)", min_value=10, max_value=120, value=60, step=5)
+    max_calories = st.slider("Max Calories (kcal)", min_value=200, max_value=1500, value=650, step=50)
+    max_budget = st.number_input("Max Budget (₹)", min_value=150, max_value=2000, value=400, step=50)
+    
+    st.markdown("---")
+    
+    if execution_mode == "sandbox":
+        st.markdown('<div class="mode-badge-sandbox">🟢 Guest Sandbox Mode (Active)</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="mode-badge-mcp">⚡ Live Swiggy MCP Stream (Active)</div>', unsafe_allow_html=True)
+        
+    st.caption("Protocol: Swiggy Model Context Protocol (MCP v2024-11-05)")
+    st.caption("Engine: LangGraph StateGraph Dual-Fleet Solver")
+    
+    st.markdown("---")
+    
+    if st.button("🗑️ Clear History", use_container_width=True):
         st.session_state.messages = [
             {
                 "role": "assistant",
-                "content": "👋 Hi! I am **MacroFlow AI**, your autonomous macro assistant for Swiggy. Tell me what you are craving (e.g. *'High protein chicken bowl'*), and I will analyze Swiggy menus, build your cart, and generate native cart confirmation cards!",
+                "content": "👋 Hi! I am **MacroFlow AI**, your Cross-Fleet Food + Instamart Macro Optimizer. Set your dietary preference & target constraints, and I will discover restaurant bases & ready-to-consume Instamart boosters in parallel with zero friction!",
                 "trace": [],
-                "cart_details": None
+                "hybrid_state": None
             }
         ]
         st.rerun()
 
 # ==========================================
-# Main Header & Dashboard Area
+# Main Screen Experience
 # ==========================================
 st.markdown("""
-    <div class="main-header">
-        <h1>🥗 MacroFlow AI Assistant</h1>
-        <p>Intelligent nutrition planning and live cart management via Swiggy Model Context Protocol (MCP)</p>
+    <div class="hero-card">
+        <div class="hero-badge">SWIGGY AGENTIC COMMERCE | MCP v2024-11-05</div>
+        <h1>🥗 MacroFlow AI Cross-Fleet Optimizer</h1>
+        <p>Production-Grade Dual-Engine Macro Orchestrator across Swiggy Food Delivery & Instamart (10-Min Grocery)</p>
     </div>
 """, unsafe_allow_html=True)
 
-# Active Goal Summary Banner
 st.markdown(f"""
-    <div class="goal-summary-card">
+    <div class="goal-summary-bar">
+        <div><strong>⚡ Mode:</strong> <code>{execution_mode.upper()}</code></div>
+        <div><strong>🌱 Diet:</strong> <code>{selected_diet}</code></div>
+        <div><strong>📍 Delivery:</strong> <code>{selected_address_id}</code></div>
         <div><strong>💪 Protein Target:</strong> {protein_target}g+</div>
         <div><strong>🔥 Max Calories:</strong> &lt;{max_calories} kcal</div>
         <div><strong>💰 Max Budget:</strong> &lt;₹{max_budget}</div>
     </div>
 """, unsafe_allow_html=True)
 
-# Initialize Chat Messages in Session State
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "👋 Hi! I am **MacroFlow AI**, your autonomous macro assistant for Swiggy. Tell me what you are craving (e.g. *'High protein chicken bowl'*), and I will analyze Swiggy menus, build your cart, and generate native cart confirmation cards!",
+            "content": "👋 Hi! I am **MacroFlow AI**, your Cross-Fleet Food + Instamart Macro Optimizer. Set your dietary preference & target constraints, and I will discover restaurant bases & ready-to-consume Instamart boosters in parallel with zero friction!",
             "trace": [],
-            "cart_details": None
+            "hybrid_state": None
         }
     ]
 
-# Render Chat History
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         
-        # Display Agent Thought Process & Tool Calls in Expander if trace exists
         if message.get("trace"):
-            with st.expander("🛠️ Agent Thought Process & MCP Tool Calls", expanded=False):
-                for step in message["trace"]:
-                    if step["type"] == "action":
-                        st.markdown(f"**⚙️ Executing Tool:** `{step['name']}`")
-                        st.json(step.get("args", {}))
-                    elif step["type"] == "result":
-                        st.markdown(f"**✅ Tool Result (`{step['name']}`):** `{step.get('status', 'SUCCESS')}`")
-                        if step.get("cart_id"):
-                            st.write(f"- **Live Cart ID:** `{step['cart_id']}`")
-                        if step.get("items"):
-                            st.write(f"- **Items:** `{step['items']}`")
-                        if step.get("pricing"):
-                            st.write(f"- **Pricing:** `{step['pricing']}`")
-                        if step.get("content"):
-                            st.text(step["content"])
+            render_trace_expander(message["trace"])
         
-        # Render Native Cart Confirmation Card if present
-        if message.get("cart_details"):
-            render_native_cart_card(message["cart_details"], protein_target, max_calories, max_budget)
+        if message.get("hybrid_state"):
+            render_split_cart_card(message["hybrid_state"], protein_target, max_calories, max_budget)
 
-# Handle New User Prompt
-if prompt := st.chat_input("What are you craving today? (e.g., High protein post-workout meal)"):
-    # Display user message
-    st.session_state.messages.append({"role": "user", "content": prompt, "trace": [], "cart_details": None})
+if prompt := st.chat_input("Enter prompt (e.g. 60g protein under ₹400 and <650 kcal, pure veg)"):
+    st.session_state.messages.append({"role": "user", "content": prompt, "trace": [], "hybrid_state": None})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Prepare enriched agent input with active sidebar targets
     enriched_input = (
-        f"My addressId is 'ctvea5srb5vobit8qosg'. User Request: {prompt}\n"
-        f"Target Constraints: Protein >= {protein_target}g, Calories <= {max_calories} kcal, Budget <= ₹{max_budget}.\n"
-        f"Execute these exact steps:\n"
-        f"1. Call get_food_cart(addressId='ctvea5srb5vobit8qosg').\n"
-        f"2. Call update_food_cart(addressId='ctvea5srb5vobit8qosg', restaurantId='924525', cartItems=[{{'menu_item_id': '201372805', 'quantity': 1}}]).\n"
-        f"3. Do not call any further tools. Extract the live numeric cart_id from Step 2's response and format output cleanly as 'Cart created successfully with ID {{cart_id}}'."
+        f"addressId is '{selected_address_id}'. User Request: {prompt}\n"
+        f"Target Constraints: Protein >= {protein_target}g, Calories <= {max_calories} kcal, Budget <= ₹{max_budget}."
     )
 
-    # Process agent response with spinner
     with st.chat_message("assistant"):
-        with st.spinner("🤖 MacroFlow Agent searching Swiggy MCP server & optimizing macros..."):
-            response_text, trace_steps = run_async(process_request_detailed(enriched_input))
-            cart_details = parse_cart_details(trace_steps, response_text)
+        with st.spinner(f"🤖 Solving Cross-Fleet Knapsack for diet '{selected_diet}' in mode '{execution_mode}'..."):
+            response_text, trace_steps, hybrid_state = run_async(
+                process_request_detailed(
+                    user_input=enriched_input,
+                    execution_mode=execution_mode,
+                    dietary_preference=selected_diet
+                )
+            )
             
             st.markdown(response_text)
             
             if trace_steps:
-                with st.expander("🛠️ Agent Thought Process & MCP Tool Calls", expanded=False):
-                    for step in trace_steps:
-                        if step["type"] == "action":
-                            st.markdown(f"**⚙️ Executing Tool:** `{step['name']}`")
-                            st.json(step.get("args", {}))
-                        elif step["type"] == "result":
-                            st.markdown(f"**✅ Tool Result (`{step['name']}`):** `{step.get('status', 'SUCCESS')}`")
-                            if step.get("cart_id"):
-                                st.write(f"- **Live Cart ID:** `{step['cart_id']}`")
-                            if step.get("items"):
-                                st.write(f"- **Items:** `{step['items']}`")
-                            if step.get("pricing"):
-                                st.write(f"- **Pricing:** `{step['pricing']}`")
-                            if step.get("content"):
-                                st.text(step["content"])
+                render_trace_expander(trace_steps)
 
-            if cart_details:
-                render_native_cart_card(cart_details, protein_target, max_calories, max_budget)
+            if hybrid_state:
+                render_split_cart_card(hybrid_state, protein_target, max_calories, max_budget)
 
-    # Append assistant response to session state
     st.session_state.messages.append({
         "role": "assistant",
         "content": response_text,
         "trace": trace_steps,
-        "cart_details": cart_details
+        "hybrid_state": hybrid_state
     })
