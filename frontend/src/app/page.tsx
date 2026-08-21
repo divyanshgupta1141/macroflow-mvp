@@ -222,6 +222,16 @@ export default function Home() {
   const displaySubtotal = activePlan?.subtotal ?? hybridState?.items_subtotal ?? 0;
   const displayPayable = activePlan?.total_payable ?? activePlan?.cost ?? hybridState?.total_payable ?? 0;
 
+  const handleRevokeToken = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/token/revoke`);
+    } catch (err) {
+      console.warn("Token revoke failed:", err);
+    }
+    setIsMcpTokenActive(false);
+    setShowOAuthModal(true);
+  };
+
   return (
     <div className="min-h-screen bg-[#090D14] text-zinc-100 flex flex-col pb-12" suppressHydrationWarning>
       {/* Main Consumer Header */}
@@ -409,6 +419,7 @@ export default function Home() {
         executionMode={executionMode}
         isMcpTokenActive={isMcpTokenActive}
         onSelectMode={handleSelectMode}
+        onRevokeToken={handleRevokeToken}
         traceSteps={traceSteps}
       />
     </div>

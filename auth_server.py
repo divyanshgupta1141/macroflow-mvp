@@ -218,7 +218,7 @@ async def get_token():
         return {"authenticated": True, "token": token, "access_token": token}
     return {"authenticated": False, "token": None, "access_token": None}
 
-@app.post("/token/revoke")
+@app.api_route("/token/revoke", methods=["GET", "POST"])
 async def revoke_token():
     TOKEN_STORE.pop("access_token", None)
     return {"status": "success", "authenticated": False, "token": None}

@@ -19,6 +19,7 @@ interface McpTerminalDrawerProps {
   executionMode: "sandbox" | "live_mcp";
   isMcpTokenActive: boolean;
   onSelectMode: (mode: "sandbox" | "live_mcp") => void;
+  onRevokeToken?: () => void;
   traceSteps: TraceStep[];
 }
 
@@ -28,6 +29,7 @@ export const McpTerminalDrawer: React.FC<McpTerminalDrawerProps> = ({
   executionMode,
   isMcpTokenActive,
   onSelectMode,
+  onRevokeToken,
   traceSteps,
 }) => {
   if (!isOpen) return null;
@@ -70,15 +72,21 @@ export const McpTerminalDrawer: React.FC<McpTerminalDrawerProps> = ({
               onClick={() => onSelectMode("live_mcp")}
               className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all cursor-pointer ${
                 executionMode === "live_mcp"
-                  ? isMcpTokenActive
-                    ? "bg-orange-500/20 text-[#FC8019] font-bold"
-                    : "bg-orange-500/20 text-[#FC8019] font-bold"
+                  ? "bg-orange-500/20 text-[#FC8019] font-bold"
                   : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
               <Zap className="w-3.5 h-3.5 text-[#FC8019]" /> Live MCP OAuth
             </button>
           </div>
+          {isMcpTokenActive && onRevokeToken && (
+            <button
+              onClick={onRevokeToken}
+              className="w-full py-1.5 px-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-mono font-semibold transition-all cursor-pointer text-center"
+            >
+              Disconnect / Revoke Swiggy Token
+            </button>
+          )}
         </div>
 
         {/* Execution Trace Terminal Body */}
