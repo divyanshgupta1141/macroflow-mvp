@@ -230,6 +230,7 @@ class MacroEnrichmentService:
 
 def extract_search_keyword(user_query: Optional[str], dietary_preference: str = "ALL") -> str:
     """Extract actionable brand/dish keywords from user prompt or fall back to dietary staples."""
+    pref = (dietary_preference or "ALL").upper()
     if user_query:
         uq = user_query.lower()
         keywords = [
@@ -237,15 +238,19 @@ def extract_search_keyword(user_query: Optional[str], dietary_preference: str = 
             "tandoori", "kebab", "chicken", "egg", "soya", "tofu", "salad", "burger", 
             "soup", "roll", "shawarma", "mutton", "fish", "tikka", "dal"
         ]
+        non_veg_keywords = ["chicken", "mutton", "fish", "kfc", "shawarma", "kebab"]
         for kw in keywords:
             if kw in uq:
+                if kw in non_veg_keywords and pref in ["VEG", "VEGAN", "EGGETARIAN"]:
+                    continue
                 return kw
 
-    pref = (dietary_preference or "ALL").upper()
     if pref == "VEGAN":
         return "tofu"
     elif pref == "VEG":
         return "paneer"
+    elif pref in ["EGG", "EGGETARIAN"]:
+        return "egg"
     return "chicken"
 
 # ==========================================
@@ -519,10 +524,19 @@ async def optimize_meal_combination(
         filtered_d = [d for d in candidate_dishes if (d.get("diet") or d.get("dietary_type")) == "VEGAN"]
         if filtered_d:
             candidate_dishes = filtered_d
+        else:
+            candidate_dishes = [
+                {"id": "food_202", "name": "Tofu Quinoa Power Salad", "restaurant": "Green Life Cafe Indiranagar", "price": 290, "protein": 24.0, "calories": 360, "diet": "VEGAN", "dietary_type": "VEGAN", "image_url": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500&auto=format&fit=crop&q=80"}
+            ]
     elif pref == "VEG":
         filtered_d = [d for d in candidate_dishes if (d.get("diet") or d.get("dietary_type")) in ["VEG", "VEGAN"]]
         if filtered_d:
             candidate_dishes = filtered_d
+        else:
+            candidate_dishes = [
+                {"id": "food_204", "name": "Paneer Tikka High-Protein Bowl", "restaurant": "The Bowl Company Indiranagar", "price": 260, "protein": 28.0, "calories": 380, "diet": "VEG", "dietary_type": "VEG", "image_url": "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=500&auto=format&fit=crop&q=80"},
+                {"id": "food_205", "name": "Soya Chaap Tikka", "restaurant": "Soya Power Hub Indiranagar", "price": 240, "protein": 26.0, "calories": 340, "diet": "VEG", "dietary_type": "VEG", "image_url": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80"}
+            ]
     elif pref in ["EGG", "EGGETARIAN"]:
         filtered_d = [d for d in candidate_dishes if (d.get("diet") or d.get("dietary_type")) in ["VEG", "VEGAN", "EGG", "EGGETARIAN"]]
         if filtered_d:
