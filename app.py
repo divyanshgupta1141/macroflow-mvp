@@ -417,13 +417,13 @@ def render_trace_expander(trace_steps: list[dict[str, Any]]):
         else:
             st.success("✅ Evaluated cross-fleet combinations with strict dietary guardrails, delivery fees & Pareto frontier solver")
 
-        st.markdown("#### 🛒 Step 4: Parallel Cart Creation (`update_food_cart` + `update_instamart_cart`)")
-        cart_steps = [s for s in trace_steps if s.get("name") in ["update_food_cart", "update_instamart_cart", "parallel_cart_mutation"]]
+        st.markdown("#### 🛒 Step 4: Check-then-Mutate Cart Synchronization (`check_cart_and_inventory` ➔ `update_food_cart`)")
+        cart_steps = [s for s in trace_steps if s.get("name") in ["update_food_cart", "update_instamart_cart", "parallel_cart_mutation", "check_cart_and_inventory", "mutate_dual_fleet_cart"] or s.get("tool") in ["create_dual_fleet_cart", "check_cart_and_inventory"]]
         if cart_steps:
             for s in cart_steps:
                 st.json(s)
         else:
-            st.info("✅ Mutated both Swiggy Food and Instamart carts in parallel via MCP")
+            st.info("✅ Validated inventory pre-flight check and mutated both Swiggy Food and Instamart carts in parallel via MCP")
 
 # ==========================================
 # Sidebar Interface
