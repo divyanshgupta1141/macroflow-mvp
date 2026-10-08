@@ -1,99 +1,147 @@
 # MacroFlow 🥗🤖
 
-> **Autonomous AI Macro Assistant built for Swiggy Food & Instamart via Model Context Protocol (MCP)**
+> **Autonomous Nutrition-Guided Ordering Agent built on Swiggy's Staging Model Context Protocol (MCP) using LangGraph State Machines.**
 
-MacroFlow eliminates the friction of manually searching menus and calculating nutritional goals. Users provide natural fitness targets (e.g., *"Get me 40g of protein under 600 calories"*), and MacroFlow handles meal discovery, live cart management, and checkout sequentially using Swiggy's MCP server.
-
----
-
-## 🌟 Demo & Submission
-- **Built for:** Swiggy Builders Club
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
+[![Protocol](https://img.shields.io/badge/Protocol-Model_Context_Protocol_(MCP)-green.svg)](https://modelcontextprotocol.io/)
+[![Hackathon](https://img.shields.io/badge/Selected_Builder-Swiggy_Builders_Club-red.svg)](#)
 
 ---
 
-## 🏗️ Architecture Flow
+## 📺 60-Second Demo & Architecture Walkthrough
 
+<!-- Replace the link below with your 45-60s Loom recording or embed an optimized GIF -->
+> **[▶️ Watch 60-Second Technical Demo (Loom)](https://www.loom.com/YOUR_DEMO_LINK)**  
+> *Demonstrates: Natural language dietary intent parsing → MCP tool execution → In-memory cache hit → Check-then-Mutate cart synchronization.*
+
+* **Live Deployment:** [macroflow-mvp.vercel.app](https://macroflow-mvp.vercel.app/)
+* **Context:** Built and selected for the **Swiggy Builders Club**.
+
+---
+
+## 🏗️ System Architecture
+
+MacroFlow models the food discovery and checkout lifecycle as a deterministic, cyclic state graph. It interfaces with Swiggy's staging environment via Model Context Protocol (MCP) over Server-Sent Events (SSE) transport.
+
+```mermaid
+flowchart TD
+    User([User Prompt: '40g protein under 600 kcal']) --> Auth[FastAPI PKCE Auth Handshake]
+    Auth --> Agent[LangGraph State Machine: agent.py]
+    
+    subgraph Optimization & Caching Layer
+        Agent --> CacheQuery{Check SKU_CACHE}
+        CacheQuery -- Cache Hit (<400ms) --> Eval[Macro & Inventory Evaluation]
+        CacheQuery -- Cache Miss --> MCP_Fetch[Fetch Catalog via Swiggy MCP]
+        MCP_Fetch --> CacheUpdate[Store in In-Memory SKU Cache (1h TTL)]
+        CacheUpdate --> Eval
+    end
+
+    subgraph Deterministic Checkout Guard
+        Eval --> PreFlight[1. Check: Verify Server Cart State & Pricing]
+        PreFlight --> SwiggyAPI[(Swiggy Backend Source of Truth)]
+        SwiggyAPI -- State Validated --> Mutate[2. Mutate: Atomic Cart Update Dispatch]
+        SwiggyAPI -- HTTP 429 Rate Limit --> Backoff[Exponential Backoff & Fallback Engine]
+        Backoff --> StateRollback[LangGraph Checkpoint Rollback]
+    end
+
+    Mutate --> Result([Synchronized Cart & Checkout Link])
 ```
-[User Goal Prompt]
-│
-▼
-[FastAPI Auth Middleware] ──(PKCE OAuth)──► [Swiggy Staging Auth]
-│
-▼
-[LangGraph Agent Graph] ──(SSE Transport)──► [Swiggy MCP Server]
-│                                            │
-├──────► get_food_cart() ◄───────────────────┤ (1. Check: Pre-flight Cart & Inventory)
-└──────► update_food_cart() ─────────────────┘ (2. Mutate: Atomic Mutation Dispatch)
-```
-
-1. **OAuth 2.0 Authentication:** `auth_server.py` executes a secure PKCE handshake with Swiggy to acquire an SSE bearer token.
-2. **Deterministic Agent Chaining:** `agent.py` uses LangGraph to filter MCP tools into a strict execution graph, preventing tool hallucination.
-3. **Live State Mutation:** Connects to Swiggy's staging MCP server over SSE transport to mutate cart state, reserve inventory, compute delivery charges, and generate checkout links.
 
 ---
 
-## 🛡️ Architectural Reliability Patterns
+## 🛡️ Core Engineering & Reliability Patterns
 
-### 1. Check-then-Mutate Deterministic Cart Synchronization
-To prevent race conditions, out-of-stock drift, and phantom item additions across multi-fleet carts (Swiggy Food and Instamart), MacroFlow enforces a strict two-stage **Check-then-Mutate** pattern inside the LangGraph workflow:
-- **Pre-Flight Validation (`check_cart_and_inventory`):** Before constructing any cart mutation payload, the engine queries active cart states (`get_food_cart`, `get_instamart_cart`) and validates live dish and booster item availability and pricing with Swiggy's MCP gateways.
-- **Atomic Mutation Dispatch (`update_food_cart` / `create_dual_fleet_cart`):** Only after real-time inventory validation passes is the synchronized mutation payload dispatched to the respective food and grocery fleets. This guarantees 100% deterministic cart synchronization without stale state locks.
+### 1. "Check-then-Mutate" Deterministic Cart Synchronization
+Multi-fleet commerce systems (Swiggy Food and Instamart) suffer from state drift when client-side carts fall out of sync with volatile restaurant inventories:
+* **Pre-Flight Validation:** Before compiling any checkout payload, the LangGraph node executes pre-flight checks against active cart endpoints (`get_food_cart`, `get_instamart_cart`), treating the remote backend as the single source of truth.
+* **Atomic Mutation Dispatch:** State updates are dispatched only after real-time SKU availability, minimum order limits, and delivery constraints are validated. If pricing or stock has drifted, the agent halts mutation and triggers a re-ranking loop.
 
-### 2. In-Memory SKU Caching (Sub-500ms Multi-Turn Latency)
-During multi-turn optimization dialogue, repetitive menu searches and nutritional enrichment lookups introduce unnecessary network roundtrips. MacroFlow incorporates a high-performance in-memory cache dictionary (`SKU_CACHE`):
-- **1-Hour TTL Caching:** Caches verified booster items, restaurant dish search responses, and Open Food Facts / heuristic macro enrichments with a 1-hour time-to-live (`SKU_CACHE_TTL_SECONDS = 3600`).
-- **Sub-500ms Turnaround:** Pre-flight cache hits bypass external HTTP hops entirely, reducing end-to-end response latency to **<400ms** on repeated and conversational queries while seamlessly falling back to live network calls on cache misses.
+### 2. In-Memory SKU & Macro Caching
+Multi-turn conversational optimization (e.g., swapping sides, recalibrating protein targets) creates redundant remote network calls:
+* **In-Memory TTL Cache:** Implemented an in-memory dictionary cache (`SKU_CACHE`) with a 1-hour time-to-live (`SKU_CACHE_TTL_SECONDS = 3600`) covering verified booster items, restaurant menu dishes, and macro nutritional heuristics.
+* **Network Roundtrip Elimination:** Pre-flight cache hits bypass external HTTP hops entirely, resolving conversational adjustments locally while seamlessly routing cache misses to live MCP tools.
 
-### 3. Multi-Tiered Fallback Mechanism (99.5% Completion under Staging Rate Limits)
-Production quick-commerce and staging API gateways frequently introduce rate throttling under peak loads. MacroFlow implements a resilient multi-tiered fallback engine:
-- **Exponential Backoff & 429 Interception:** All external MCP network calls (`search_live_dishes`, `call_tool`) are wrapped in a safe retry/backoff handler (`_execute_with_retry_and_backoff`) that detects HTTP 429 (Too Many Requests) responses, honors `Retry-After` headers or calculates exponential backoff with ceiling limits, and retries automatically without dropping active user connections.
-- **Graceful Heuristic & Offline Catalog Fallbacks:** If upstream network timeouts or rate limits exhaust retries, the system falls back gracefully to verified local CDN packshots (`INSTAMART_BOOSTER_CATALOG`) and macro heuristics, sustaining a **99.5% workflow completion rate** and preventing user-facing crashes.
-
+### 3. Multi-Tiered Fallback Engine & HTTP 429 Handling
+Staging gateways and quick-commerce APIs experience aggressive rate-limiting under burst traffic:
+* **Exponential Backoff & Interception:** All external MCP network calls are routed through an interceptor that detects HTTP 429 (Too Many Requests), respects `Retry-After` headers, and applies jittered exponential backoff retries.
+* **Graceful Catalog Fallback:** If upstream network timeouts or rate limits exhaust retries, the agent falls back to a verified offline catalog (`INSTAMART_BOOSTER_CATALOG`) and macro heuristics, avoiding unhandled exceptions or dropped user sessions.
 
 ---
 
-## 🚀 Quickstart
+## 📂 Key Code & Architecture Pointers
+
+Inspect the core architectural patterns directly:
+
+| Component | File Link | Description |
+| :--- | :--- | :--- |
+| **Agent State Graph** | [`agent.py`](agent.py) | LangGraph workflow definition, node transitions, and MCP tool binding |
+| **Cart Guards & Caching** | [`agent.py`](agent.py) | In-memory `SKU_CACHE` implementation and Check-then-Mutate logic |
+| **OAuth & PKCE Gateway** | [`auth_server.py`](auth_server.py) | FastAPI auth middleware handling Swiggy PKCE handshake and SSE token exchange |
+| **Dependencies & Config** | [`requirements.txt`](requirements.txt) | Pinned versions for LangGraph, FastAPI, and MCP client libraries |
+
+---
+
+## 🚀 Local Setup & Execution
 
 ### Prerequisites
-- Python 3.11+
-- Groq API Key
+* Python 3.11+
+* Groq API Key (for Llama-3.1 inference)
 
-### Installation
+### 1. Clone & Set Up Virtual Environment
+```bash
+git clone https://github.com/divyanshgupta1141/macroflow-mvp.git
+cd macroflow-mvp
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/divyanshgupta1141/macroflow-mvp.git
-   cd macroflow-mvp
-   ```
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-2. **Set up virtual environment & install dependencies:**
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+### 2. Environment Variables
+Create a `.env` file in the root directory:
+```bash
+cp .env.example .env
+```
+Ensure your `.env` contains:
+```env
+GROQ_API_KEY=your_groq_api_key_here
+SWIGGY_MCP_BASE_URL=[https://staging-mcp.swiggy.com]
+PORT=8000
+```
 
-3. **Configure Environment Variables:**
-   ```bash
-   cp .env.example .env
-   # Add your GROQ_API_KEY inside .env
-   ```
+### 3. Launch Services
 
-4. **Run the Auth Server:**
-   ```bash
-   uvicorn auth_server:app --reload --port 8000
-   ```
+**Terminal 1 — Auth & Webhook Server:**
+```bash
+uvicorn auth_server:app --reload --port 8000
+```
 
-5. **Run the Agent:**
-   ```bash
-   python agent.py
-   ```
+**Terminal 2 — Run the Agent:**
+```bash
+python agent.py
+```
+
+---
+
+## 🧪 Sample CLI Interaction Trace
+
+```text
+[User] "Find me a post-workout dinner: 45g protein, under 700 kcal near Indiranagar"
+[Agent] Querying in-memory cache... (Miss)
+[MCP] Dispatched search_live_dishes (Swiggy Food SSE Transport)
+[Agent] Evaluated 12 SKUs -> Selected Grilled Chicken Bowl (42g P, 520 kcal)
+[Agent] Executing Pre-flight Check: get_food_cart() -> Server state: Cart Empty
+[Agent] Check-then-Mutate Verified -> Dispatched update_food_cart()
+[Success] Cart synchronized. Checkout URL generated: [https://swiggy.com/pay/](https://swiggy.com/pay/)...
+```
 
 ---
 
 ## 🛠️ Tech Stack
 
-* **AI / Agent Framework:** LangGraph, LangChain, Groq (Llama-3.1-8B)
-* **Protocol:** Swiggy Model Context Protocol (MCP over SSE)
-* **Backend / Auth:** FastAPI, Uvicorn, httpx, PKCE OAuth 2.0
-* **Language:** Python 3.14
+* **Orchestration:** LangGraph (State Graphs, Cyclic Checkpoints), LangChain
+* **LLM Engine:** Groq (Llama-3.1-8B-Instant)
+* **Protocol & Transport:** Model Context Protocol (MCP) over SSE (Server-Sent Events)
+* **Backend & Auth:** FastAPI, Uvicorn, httpx, OAuth 2.0 (PKCE)
+* **Language & Validation:** Python 3.11+, Pydantic v2
