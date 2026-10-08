@@ -26,26 +26,26 @@ MacroFlow models the food discovery and checkout lifecycle as a deterministic, c
 
 ```mermaid
 flowchart TD
-    User([User Prompt: '40g protein under 600 kcal']) --> Auth[FastAPI PKCE Auth Handshake]
-    Auth --> Agent[LangGraph State Machine: agent.py]
+    User(["User Prompt: 40g protein under 600 kcal"]) --> Auth["FastAPI PKCE Auth Handshake"]
+    Auth --> Agent["LangGraph State Machine: agent.py"]
     
-    subgraph Optimization & Caching Layer
-        Agent --> CacheQuery{Check SKU_CACHE}
-        CacheQuery -- Cache Hit (<400ms) --> Eval[Macro & Inventory Evaluation]
-        CacheQuery -- Cache Miss --> MCP_Fetch[Fetch Catalog via Swiggy MCP]
-        MCP_Fetch --> CacheUpdate[Store in In-Memory SKU Cache (1h TTL)]
+    subgraph Caching ["Optimization & Caching Layer"]
+        Agent --> CacheQuery{"Check SKU_CACHE"}
+        CacheQuery -- "Cache Hit (<400ms)" --> Eval["Macro & Inventory Evaluation"]
+        CacheQuery -- "Cache Miss" --> MCP_Fetch["Fetch Catalog via Swiggy MCP"]
+        MCP_Fetch --> CacheUpdate["Store in In-Memory SKU Cache (1h TTL)"]
         CacheUpdate --> Eval
     end
 
-    subgraph Deterministic Checkout Guard
-        Eval --> PreFlight[1. Check: Verify Server Cart State & Pricing]
-        PreFlight --> SwiggyAPI[(Swiggy Backend Source of Truth)]
-        SwiggyAPI -- State Validated --> Mutate[2. Mutate: Atomic Cart Update Dispatch]
-        SwiggyAPI -- HTTP 429 Rate Limit --> Backoff[Exponential Backoff & Fallback Engine]
-        Backoff --> StateRollback[LangGraph Checkpoint Rollback]
+    subgraph Guard ["Deterministic Checkout Guard"]
+        Eval --> PreFlight["1. Check: Verify Server Cart State & Pricing"]
+        PreFlight --> SwiggyAPI[("Swiggy Backend Source of Truth")]
+        SwiggyAPI -- "State Validated" --> Mutate["2. Mutate: Atomic Cart Update Dispatch"]
+        SwiggyAPI -- "HTTP 429 Rate Limit" --> Backoff["Exponential Backoff & Fallback Engine"]
+        Backoff --> StateRollback["LangGraph Checkpoint Rollback"]
     end
 
-    Mutate --> Result([Synchronized Cart & Checkout Link])
+    Mutate --> Result(["Synchronized Cart & Checkout Link"])
 ```
 
 ---
